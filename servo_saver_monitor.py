@@ -179,12 +179,12 @@ def run_cycle(our_stations):
             if not avail_types:
                 log(f"  OUT: {station_name} ({suburb}) — ALL fuels unavailable")
                 if save_signal(suburb.lower(), "red", 9,
-                    "Fair Fuel API: ALL fuel types marked unavailable",
+                    f"Fair Fuel API: {station_name} — ALL fuel types marked unavailable. Match: {matched['name']}",
                     [matched["id"]]): signals_saved += 1
             else:
                 log(f"  PARTIAL: {station_name} — no {', '.join(unavail_names)}")
                 if save_signal(suburb.lower(), "yellow", 8,
-                    f"Fair Fuel API: {', '.join(unavail_names)} unavailable. {', '.join(avail_names)} available.",
+                    f"Fair Fuel API: {station_name} — {', '.join(unavail_names)} unavailable. {', '.join(avail_names)} available. Match: {matched['name']}",
                     [matched["id"]]): signals_saved += 1
 
         # SIGNAL 2: Gone dark on price reporting
@@ -197,14 +197,14 @@ def run_cycle(our_stations):
                     stale_count += 1
                     log(f"  STALE: {station_name} — {age_hrs:.0f}hrs since last report")
                     if save_signal(suburb.lower(), "red", 7,
-                        f"Fair Fuel API: No price update in {age_hrs:.0f}hrs (legally required every 24hrs)",
+                        f"Fair Fuel API: {station_name} — no price update in {age_hrs:.0f}hrs (legally required every 24hrs). Match: {matched['name']}",
                         [matched["id"]]): signals_saved += 1
 
                 elif last_update > active_cutoff and not unavail_types:
                     if matched.get("status") in ("red", "gray"):
                         log(f"  ACTIVE: {station_name} — all fuels available, reported {age_hrs:.1f}hrs ago")
                         if save_signal(suburb.lower(), "green", 8,
-                            f"Fair Fuel API: All fuels available and actively reported {age_hrs:.1f}hrs ago",
+                            f"Fair Fuel API: {station_name} — all fuels available, reported {age_hrs:.1f}hrs ago. Match: {matched['name']}",
                             [matched["id"]]): signals_saved += 1
             except: pass
 
