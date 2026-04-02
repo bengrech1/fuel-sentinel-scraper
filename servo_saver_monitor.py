@@ -91,6 +91,38 @@ def load_our_stations():
             break
     return all_stations
 
+def apply_to_station(station_ids, status, source_desc, fuel_note=None):
+    """Directly update station status in Supabase."""
+    now = datetime.now(timezone.utc).isoformat()
+    for sid in station_ids:
+        try:
+            patch = {
+                "status": status,
+                "source": f"Fair Fuel API (auto)",
+                "updated_at": now
+            }
+            if fuel_note:
+                patch["fuel_notes"] = fuel_note
+            data = json.dumps(patch).encode()
+            req = urllib.request.Request(
+                f"{SUPABASE_URL}/rest/v1/stations?id=eq.{sid}",
+                data=data, method="PATCH"
+            )
+            for k, v in SB_HEADERS.items():
+                req.add_header(k, v)
+            with urllib.request.urlopen(req, timeout=15, context=ssl_ctx) as r:
+                pass
+        except Exception as e:
+            log(f"  Station update error: {e}")
+
+def extract_fuel_note(unavail_names, avail_names):
+    """Build a fuel note string from unavailable types."""
+    if not unavail_names:
+        return None
+    if not avail_names:
+        return "All fuels unavailable"
+    return f"No {', '.join(unavail_names)}"
+
 def save_signal(suburb, status, confidence, source_desc, station_ids):
     try:
         body = {
@@ -178,11 +210,18 @@ def run_cycle(our_stations):
 
             if not avail_types:
                 log(f"  OUT: {station_name} ({suburb}) — ALL fuels unavailable")
+                apply_to_station([matched["id"]], "red",
+                    f"Fair Fuel API: {station_name} — ALL fuels unavailable",
+                    "All fuels unavailable")
                 if save_signal(suburb.lower(), "red", 9,
                     f"Fair Fuel API: {station_name} — ALL fuel types marked unavailable. Match: {matched['name']}",
                     [matched["id"]]): signals_saved += 1
             else:
                 log(f"  PARTIAL: {station_name} — no {', '.join(unavail_names)}")
+                fuel_note = extract_fuel_note(unavail_names, avail_names)
+                apply_to_station([matched["id"]], "yellow",
+                    f"Fair Fuel API: {station_name} — partial unavailability",
+                    fuel_note)
                 if save_signal(suburb.lower(), "yellow", 8,
                     f"Fair Fuel API: {station_name} — {', '.join(unavail_names)} unavailable. {', '.join(avail_names)} available. Match: {matched['name']}",
                     [matched["id"]]): signals_saved += 1
@@ -196,6 +235,8 @@ def run_cycle(our_stations):
                 if last_update < stale_cutoff and not unavail_types:
                     stale_count += 1
                     log(f"  STALE: {station_name} — {age_hrs:.0f}hrs since last report")
+                    apply_to_station([matched["id"]], "red",
+                        f"Fair Fuel API: gone dark on price reporting")
                     if save_signal(suburb.lower(), "red", 7,
                         f"Fair Fuel API: {station_name} — no price update in {age_hrs:.0f}hrs (legally required every 24hrs). Match: {matched['name']}",
                         [matched["id"]]): signals_saved += 1
@@ -203,6 +244,8 @@ def run_cycle(our_stations):
                 elif last_update > active_cutoff and not unavail_types:
                     if matched.get("status") in ("red", "gray"):
                         log(f"  ACTIVE: {station_name} — all fuels available, reported {age_hrs:.1f}hrs ago")
+                        apply_to_station([matched["id"]], "green",
+                            f"Fair Fuel API: actively reporting, all fuels available")
                         if save_signal(suburb.lower(), "green", 8,
                             f"Fair Fuel API: {station_name} — all fuels available, reported {age_hrs:.1f}hrs ago. Match: {matched['name']}",
                             [matched["id"]]): signals_saved += 1

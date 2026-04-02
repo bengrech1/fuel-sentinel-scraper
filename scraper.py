@@ -363,8 +363,9 @@ def expire_statuses(stations):
     for s in stations:
         if s.get("status") == "gray":
             continue
-        # Never expire manually verified stations
-        if (s.get("source") or "").lower().startswith("manual"):
+        # Never expire manually verified or Fair Fuel API stations
+        source = (s.get("source") or "").lower()
+        if source.startswith("manual") or source.startswith("fair fuel"):
             continue
         raw = s.get("updated_at")
         if not raw:
