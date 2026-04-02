@@ -1,0 +1,3 @@
+# Fuel Sentinel Scraper — no external dependencies needed
+# Uses only Python standard library
+# Python 3.8+ required

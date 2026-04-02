@@ -1,0 +1,11 @@
+services:
+  - type: worker
+    name: fuel-sentinel-scraper
+    env: python
+    buildCommand: echo "No build needed"
+    startCommand: python scraper.py & python servo_saver_monitor.py & wait
+    envVars:
+      - key: SUPABASE_URL
+        value: https://sqnhggdhgvjdgjvhyjej.supabase.co
+      - key: SUPABASE_ANON_KEY
+        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNxbmhnZ2RoZ3ZqZGdqdmh5amVqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MzMwNDAsImV4cCI6MjA5MDIwOTA0MH0.pa3W1tk8SF6lKvAOQ9hxlnX2yiIgZDKUx8nxU9xc4mE
