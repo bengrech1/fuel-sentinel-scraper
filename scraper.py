@@ -22,7 +22,7 @@ SUPABASE_URL      = os.environ.get("SUPABASE_URL",      "https://sqnhggdhgvjdgjv
 SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNxbmhnZ2RoZ3ZqZGdqdmh5amVqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MzMwNDAsImV4cCI6MjA5MDIwOTA0MH0.pa3W1tk8SF6lKvAOQ9hxlnX2yiIgZDKUx8nxU9xc4mE")
 MIN_SIGNALS       = 2
 SIGNAL_EXPIRY_HRS = 4
-STATUS_EXPIRY_HRS = 4
+STATUS_EXPIRY_HRS = 25
 RUN_INTERVAL_MINS = 30
 # ─────────────────────────────────────────────────────────────
 
@@ -363,6 +363,9 @@ def expire_statuses(stations):
     for s in stations:
         if s.get("status") == "gray":
             continue
+        # Never expire manually verified stations
+        if (s.get("source") or "").lower().startswith("manual"):
+            continue
         raw = s.get("updated_at")
         if not raw:
             continue
@@ -440,7 +443,7 @@ def run_fuelcheck_cycle(stations):
     # Get auth token
     token = None
     try:
-        req = urllib.request.Request(f"{FUELCHECK_BASE}/Security/CreateAnonymousUser", data=b'{}', method="POST")
+        req = urllib.request.Request(f"{FUELCHECK_BASE}/Security/CreateAnonymousUser", data=b\'{}\', method="POST")
         for k,v in FC_HEADERS.items(): req.add_header(k,v)
         with urllib.request.urlopen(req, timeout=20, context=ssl_ctx) as r:
             token = json.loads(r.read().decode()).get("access_token")
