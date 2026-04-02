@@ -128,7 +128,7 @@ def save_signal(suburb, status, confidence, source_desc, station_ids):
         body = {
             "suburb": suburb, "status": status, "confidence": confidence,
             "source_type": "fair_fuel_api", "source_desc": source_desc[:300],
-            "station_ids": json.dumps(station_ids), "processed": False,
+            "station_ids": json.dumps(station_ids), "processed": True, "auto_applied": True,
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         req = urllib.request.Request(
