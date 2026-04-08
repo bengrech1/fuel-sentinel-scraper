@@ -91,7 +91,7 @@ def load_our_stations():
             break
     return all_stations
 
-def apply_to_station(station_ids, status, source_desc, fuel_note=None):
+def apply_to_station(station_ids, status, source_desc, fuel_note=None, fuel_prices=None):
     """Directly update station status in Supabase."""
     now = datetime.now(timezone.utc).isoformat()
     for sid in station_ids:
@@ -103,6 +103,8 @@ def apply_to_station(station_ids, status, source_desc, fuel_note=None):
             }
             if fuel_note:
                 patch["fuel_notes"] = fuel_note
+            if fuel_prices:
+                patch["fuel_prices"] = json.dumps(fuel_prices)
             data = json.dumps(patch).encode()
             req = urllib.request.Request(
                 f"{SUPABASE_URL}/rest/v1/stations?id=eq.{sid}",
@@ -200,8 +202,19 @@ def run_cycle(our_stations):
         suburb = matched.get("suburb") or (addr_parts[-2].strip() if len(addr_parts) >= 2 else "")
 
         # SIGNAL 1: isAvailable field — direct government reported unavailability
-        unavail_types = [p["fuelType"] for p in fuel_prices if p.get("isAvailable") is False]
-        avail_types   = [p["fuelType"] for p in fuel_prices if p.get("isAvailable") is True]
+        unavail_types = [fp["fuelType"] for fp in fuel_prices if fp.get("isAvailable") is False]
+        avail_types   = [fp["fuelType"] for fp in fuel_prices if fp.get("isAvailable") is True]
+        
+        # Build structured price data for storage
+        price_data = [
+            {
+                "type": fp["fuelType"],
+                "price": fp.get("price"),
+                "available": fp.get("isAvailable", True)
+            }
+            for fp in fuel_prices
+            if fp.get("fuelType") in ["U91","P95","P98","DSL","PDSL","E10","E85","LPG","LNG","CNG"]
+        ]
 
         if unavail_types:
             unavail_count += 1
@@ -212,7 +225,7 @@ def run_cycle(our_stations):
                 log(f"  OUT: {station_name} ({suburb}) — ALL fuels unavailable")
                 apply_to_station([matched["id"]], "red",
                     f"Fair Fuel API: {station_name} — ALL fuels unavailable",
-                    "All fuels unavailable")
+                    "All fuels unavailable", price_data)
                 if save_signal(suburb.lower(), "red", 9,
                     f"Fair Fuel API: {station_name} — ALL fuel types marked unavailable. Match: {matched['name']}",
                     [matched["id"]]): signals_saved += 1
@@ -221,7 +234,7 @@ def run_cycle(our_stations):
                 fuel_note = extract_fuel_note(unavail_names, avail_names)
                 apply_to_station([matched["id"]], "yellow",
                     f"Fair Fuel API: {station_name} — partial unavailability",
-                    fuel_note)
+                    fuel_note, price_data)
                 if save_signal(suburb.lower(), "yellow", 8,
                     f"Fair Fuel API: {station_name} — {', '.join(unavail_names)} unavailable. {', '.join(avail_names)} available. Match: {matched['name']}",
                     [matched["id"]]): signals_saved += 1
@@ -245,12 +258,14 @@ def run_cycle(our_stations):
                     if matched.get("status") in ("red", "gray"):
                         log(f"  ACTIVE: {station_name} — all fuels available, reported {age_hrs:.1f}hrs ago")
                         apply_to_station([matched["id"]], "green",
-                            f"Fair Fuel API: actively reporting, all fuels available")
+                            f"Fair Fuel API: actively reporting, all fuels available",
+                            None, price_data)
                         if save_signal(suburb.lower(), "green", 8,
                             f"Fair Fuel API: {station_name} — all fuels available, reported {age_hrs:.1f}hrs ago. Match: {matched['name']}",
                             [matched["id"]]): signals_saved += 1
             except: pass
 
+    log(f"  Price data stored for matched stations")
     return unavail_count, stale_count, signals_saved
 
 def main():
