@@ -265,8 +265,49 @@ def run_cycle(our_stations):
                             [matched["id"]]): signals_saved += 1
             except: pass
 
-    log(f"  Price data stored for matched stations")
+    # Update prices for ALL matched stations
+    update_all_prices(records, our_stations)
     return unavail_count, stale_count, signals_saved
+
+def update_all_prices(records, our_stations):
+    """Update fuel_prices for every matched station regardless of status."""
+    updated = 0
+    now = datetime.now(timezone.utc).isoformat()
+    for record in records:
+        station    = record.get("fuelStation", {})
+        fuel_prices = record.get("fuelPrices", [])
+        if not station or not fuel_prices: continue
+
+        matched = match_station(station, our_stations)
+        if not matched: continue
+
+        price_data = [
+            {
+                "type": fp["fuelType"],
+                "price": fp.get("price"),
+                "available": fp.get("isAvailable", True)
+            }
+            for fp in fuel_prices
+            if fp.get("fuelType") in ["U91","P95","P98","DSL","PDSL","E10","E85","LPG","LNG","CNG"]
+        ]
+        if not price_data: continue
+
+        try:
+            data = json.dumps({"fuel_prices": json.dumps(price_data), "updated_at": now}).encode()
+            req = urllib.request.Request(
+                f"{SUPABASE_URL}/rest/v1/stations?id=eq.{matched['id']}",
+                data=json.dumps({"fuel_prices": json.dumps(price_data)}).encode(),
+                method="PATCH"
+            )
+            for k, v in SB_HEADERS.items():
+                req.add_header(k, v)
+            with urllib.request.urlopen(req, timeout=15, context=ssl_ctx) as r:
+                if r.status < 300:
+                    updated += 1
+        except Exception as e:
+            pass
+
+    log(f"  Updated fuel prices for {updated} stations")
 
 def main():
     log("=" * 60)
